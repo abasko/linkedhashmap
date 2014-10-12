@@ -51,9 +51,9 @@ public class Tests {
     public static void main(String[] args) {
         long[] result = run(1000, new Test() { public void test() { test1(); }});
         for (int i = 0; i < result.length; i++) {
-            System.out.println(((double)result[i]) / 1_000_000);
+            System.out.println(((double)result[i]) / 1_000_000 + " ms");
         }
-        System.out.println("mean=" + mean(result));
-        System.out.println("std var=" + stdvar(result));
+        System.out.println("mean=" + mean(result) + " ms");
+        System.out.println("std var=" + stdvar(result) + " ms");
     }    
 }
