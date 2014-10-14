@@ -1,7 +1,7 @@
 Persistent LinkedHashMap
 ========================
 
-Haskell implementation of Java (Concurrent)LinkedHashMap.
+Haskell implementation of Java LinkedHashMap.
 
 Underlying HashMap is based on Data.HashMap.Strict.
 

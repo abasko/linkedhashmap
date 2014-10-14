@@ -15,19 +15,19 @@ module Data.LinkedHashMap.Seq
     , lookupDefault
     , (!)
     , insert
-    -- , insertWith
+    , insertWith
     , delete
-    -- , adjust
+    , adjust
 
       -- * Combine
       -- ** Union
-    -- , union
-    -- , unionWith
-    -- , unions
+    , union
+    , unionWith
+    , unions
 
       -- * Transformations
     , map
-    -- , mapWithKey
+    , mapWithKey
     -- , traverseWithKey
 
       -- * Difference and intersection
@@ -56,13 +56,15 @@ module Data.LinkedHashMap.Seq
     , pack
     ) where
 
-import Prelude hiding (null, lookup)
+import Prelude hiding (map, null, lookup)
 import Data.Maybe
 import Control.DeepSeq (NFData(rnf))
 import Data.Hashable (Hashable)
 import Data.Sequence (Seq, (|>))
+import Data.Traversable (Traversable(..))
 import qualified Data.Sequence as S
 import qualified Data.Foldable as F
+import qualified Data.List as L
 import qualified Data.HashMap.Strict as M
 
 newtype Entry a = Entry { unEntry :: (Int, a) } deriving (Show)
@@ -91,8 +93,8 @@ lookup k0 (LinkedHashMap m0 _ _) = case M.lookup k0 m0 of
 fromList :: (Eq k, Hashable k) => [(k, v)] -> LinkedHashMap k v
 fromList ps = LinkedHashMap m' s' len'
   where
-    m0 = M.fromList $ map (\(i, (k, v)) -> (k, Entry (i, v))) $ zip [0..] ps
-    s0 = S.fromList $ map (\(k, v) -> Just (k, v)) ps
+    m0 = M.fromList $ L.map (\(i, (k, v)) -> (k, Entry (i, v))) $ zip [0..] ps
+    s0 = S.fromList $ L.map (\(k, v) -> Just (k, v)) ps
     len = M.size m0
     (m', s', len') = if len == S.length s0
                      then (m0, s0, len)
@@ -182,17 +184,83 @@ lookupDefault def k t = case lookup k t of
 -- | /O(n)/ Return a list of this map's keys.  The list is produced
 -- lazily.
 keys :: (Eq k, Hashable k) => LinkedHashMap k v -> [k]
-keys m = map (\(k, _) -> k) $ toList m
+keys m = L.map (\(k, _) -> k) $ toList m
 {-# INLINE keys #-}
 
 -- | /O(n)/ Return a list of this map's values.  The list is produced
 -- lazily.
 elems :: (Eq k, Hashable k) => LinkedHashMap k v -> [v]
-elems m = map (\(_, v) -> v) $ toList m
+elems m = L.map (\(_, v) -> v) $ toList m
 {-# INLINE elems #-}
+
+-- | /O(log n)/ Associate the value with the key in this map.  If
+-- this map previously contained a mapping for the key, the old value
+-- is replaced by the result of applying the given function to the new
+-- and old value.  Example:
+--
+-- > insertWith f k v map
+-- >   where f new old = new + old
+insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> LinkedHashMap k v -> LinkedHashMap k v
+insertWith f k v (LinkedHashMap m s n) = LinkedHashMap m' s' n'
+  where
+    m' = M.insertWith f' k v' m
+    f' (Entry (_, v1)) (Entry (ix, v2)) = Entry (ix, f v1 v2)
+    slen = S.length s
+    v' = Entry (slen, v)
+    (ixnew, vnew) = unEntry $ fromJust $ M.lookup k m'
+    (s', n') = if ixnew == slen 
+               then (s |> Just (k, vnew), n + 1)
+               else (S.update ixnew (Just (k, vnew)) s, n)
+
+-- | /O(log n)/ Adjust the value tied to a given key in this map only
+-- if it is present. Otherwise, leave the map alone.
+adjust :: (Eq k, Hashable k) => (v -> v) -> k -> LinkedHashMap k v -> LinkedHashMap k v
+adjust f k (LinkedHashMap m s n) = LinkedHashMap m' s' n
+  where
+    m' = M.adjust f' k m
+    f' (Entry (ix, v)) = Entry (ix, f v)
+    s' = case M.lookup k m' of
+           Just (Entry (ix, v)) -> S.update ix (Just (k, v)) s
+           Nothing -> s
+
+-- | /O(m*log n)/ The union of two maps, n - size of first map. If a key occurs in both maps, the
+-- mapping from the first will be the mapping in the result.
+union :: (Eq k, Hashable k) => LinkedHashMap k v -> LinkedHashMap k v -> LinkedHashMap k v
+union = unionWith const
+{-# INLINABLE union #-}
+
+-- | /O(m*log n)/ The union of two maps.  If a key occurs in both maps,
+-- the provided function (first argument) will be used to compute the
+-- result.
+unionWith :: (Eq k, Hashable k) => (v -> v -> v) -> LinkedHashMap k v -> LinkedHashMap k v
+          -> LinkedHashMap k v
+unionWith f m1 m2 = m'
+  where
+    m' = F.foldl' (\m (k, v) -> insertWith (flip f) k v m) m1 $ toList m2
+
+-- | Construct a set containing all elements from a list of sets.
+unions :: (Eq k, Hashable k) => [LinkedHashMap k v] -> LinkedHashMap k v
+unions = F.foldl' union empty
+{-# INLINE unions #-}
+
+-- | /O(n)/ Transform this map by applying a function to every value.
+map :: (v1 -> v2) -> LinkedHashMap k v1 -> LinkedHashMap k v2
+map f = mapWithKey (const f)
+{-# INLINE map #-}
+
+-- | /O(n)/ Transform this map by applying a function to every value.
+mapWithKey :: (k -> v1 -> v2) -> LinkedHashMap k v1 -> LinkedHashMap k v2
+mapWithKey f (LinkedHashMap m s n) = (LinkedHashMap m' s' n)
+  where
+    m' = M.mapWithKey f' m
+    s' = fmap f'' s
+    f' k (Entry (ix, v1)) = Entry (ix, f k v1)
+    f'' (Just (k, v1)) = Just (k, f k v1)
+    f'' _  = Nothing
 
 instance (NFData a) => NFData (Entry a) where
     rnf (Entry a) = rnf a
 
 instance (NFData k, NFData v) => NFData (LinkedHashMap k v) where
     rnf (LinkedHashMap m s _) = rnf m `seq` rnf s
+

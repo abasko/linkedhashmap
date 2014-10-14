@@ -1,6 +1,7 @@
 module SeqTests where
 
 import Data.LinkedHashMap.Seq
+import qualified Data.HashMap.Strict as M
 
 test0 = fromList [(1 :: Int,"A"), (5, "B"), (7, "C"), (-6, "D")]
 test1 = fromList [(1 :: Int,"A"), (5, "B"), (7, "C"), (-6, "D"), (1 :: Int,"AAAAA")]
@@ -29,4 +30,21 @@ z5@(LinkedHashMap zm5 zs5 zn5) = delete 5 $ z4
 test4 = fromList ([] :: [(Int, String)])
 
 y3'@(LinkedHashMap mm3' s3' n3') = pack y3
+
+z6 = insertWith (++) 5 "_ZZZ" test0
+z7 = insertWith (++) 11 "_ZZZ" test0
+
+z8 = adjust (\v0 -> v0 ++ "_adjusted") 5 test0
+z9 = adjust (\v0 -> v0 ++ "_adjusted") 123 test0
+
+t0 = fromList [(1 :: Int,"A"), (5, "B"), (7, "C"), (-6, "D")]
+t1 = fromList [(2 :: Int,"2A"), (3, "2B"), (7, "2C"), (-6, "2D")]
+t2 = fromList [(0 :: Int,"3A"), (5, "3B"), (17, "3C"), (-6, "3D")]
+
+u1 = union t0 t1
+u2 = union t1 t2
+u3 = unionWith (++) t0 t1
+u4 = unions [t0, t1, t2]
+
+m1 = mapWithKey (\k v1 -> v1 ++ show k) t0
 

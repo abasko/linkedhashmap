@@ -7,8 +7,8 @@ module Data.LinkedHashSet
     , singleton
 
     -- * Combine
-    -- , union
-    -- , unions
+    , union
+    , unions
 
     -- * Basic interface
     , null
@@ -18,7 +18,7 @@ module Data.LinkedHashSet
     , delete
 
     -- * Transformations
-    -- , map
+    , map
 
       -- * Difference and intersection
     -- , difference
@@ -36,7 +36,7 @@ module Data.LinkedHashSet
     , fromList
     ) where
 
-import Prelude hiding (null, lookup)
+import Prelude hiding (null, lookup, map)
 import Control.DeepSeq (NFData(rnf))
 import Data.Hashable (Hashable)
 import qualified Data.List as L
@@ -60,18 +60,15 @@ singleton :: (Eq a, Hashable a) => a -> LinkedHashSet a
 singleton a = LinkedHashSet (M.singleton a ())
 {-# INLINABLE singleton #-}
 
--- -- | /O(n+m)/ Construct a set containing all elements from both sets.
--- --
--- -- To obtain good performance, the smaller set must be presented as
--- -- the first argument.
--- union :: (Eq a, Hashable a) => LinkedHashSet a -> LinkedHashSet a -> LinkedHashSet a
--- union s1 s2 = LinkedHashSet $ M.union (asMap s1) (asMap s2)
--- {-# INLINE union #-}
+-- | /O(m*log n)/ Construct a set containing all elements from both sets, n - size of first map.
+union :: (Eq a, Hashable a) => LinkedHashSet a -> LinkedHashSet a -> LinkedHashSet a
+union s1 s2 = LinkedHashSet $ M.union (asMap s1) (asMap s2)
+{-# INLINE union #-}
 
--- -- | Construct a set containing all elements from a list of sets.
--- unions :: (Eq a, Hashable a) => [LinkedHashSet a] -> LinkedHashSet a
--- unions = List.foldl' union empty
--- {-# INLINE unions #-}
+-- | Construct a set containing all elements from a list of sets.
+unions :: (Eq a, Hashable a) => [LinkedHashSet a] -> LinkedHashSet a
+unions = L.foldl' union empty
+{-# INLINE unions #-}
 
 -- | /O(1)/ Return 'True' if this set is empty, 'False' otherwise.
 null :: LinkedHashSet a -> Bool
@@ -102,11 +99,11 @@ delete :: (Eq a, Hashable a) => a -> LinkedHashSet a -> LinkedHashSet a
 delete a = LinkedHashSet . M.delete a . asMap
 {-# INLINABLE delete #-}
 
--- -- | /O(n)/ Transform this set by applying a function to every value.
--- -- The resulting set may be smaller than the source.
--- map :: (Hashable b, Eq b) => (a -> b) -> LinkedHashSet a -> LinkedHashSet b
--- map f = fromList . List.map f . toList
--- {-# INLINE map #-}
+-- | /O(n)/ Transform this set by applying a function to every value.
+-- The resulting set may be smaller than the source.
+map :: (Hashable b, Eq b) => (a -> b) -> LinkedHashSet a -> LinkedHashSet b
+map f = fromList . L.map f . toList
+{-# INLINE map #-}
 
 -- -- | /O(n)/ Difference of two sets. Return elements of the first set
 -- -- not existing in the second.
@@ -147,7 +144,7 @@ delete a = LinkedHashSet . M.delete a . asMap
 
 -- | /O(n)/ Return a list of this set's elements.  The list is produced lazily.
 toList :: LinkedHashSet a -> [a]
-toList t = map (\(k, _) -> k) $ M.toList (asMap t)
+toList t = L.map (\(k, _) -> k) $ M.toList (asMap t)
 {-# INLINE toList #-}
 
 -- | /O(n*min(W, n))/ Construct a set from a list of elements.
