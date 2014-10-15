@@ -28,7 +28,7 @@ module Data.LinkedHashMap.Seq
       -- * Transformations
     , map
     , mapWithKey
-    -- , traverseWithKey
+    , traverseWithKey
 
       -- * Difference and intersection
     -- , difference
@@ -38,7 +38,7 @@ module Data.LinkedHashMap.Seq
       -- * Folds
     -- , foldl'
     -- , foldlWithKey'
-    -- , foldr
+    , foldr
     -- , foldrWithKey
 
       -- * Filter
@@ -56,14 +56,16 @@ module Data.LinkedHashMap.Seq
     , pack
     ) where
 
-import Prelude hiding (map, null, lookup)
+import Prelude hiding (foldr, map, null, lookup)
 import Data.Maybe
+import Control.Applicative ((<$>), Applicative(pure))
 import Control.DeepSeq (NFData(rnf))
 import Data.Hashable (Hashable)
-import Data.Sequence (Seq, (|>))
+import Data.Sequence (Seq, (|>)) 
 import Data.Traversable (Traversable(..))
 import qualified Data.Sequence as S
 import qualified Data.Foldable as F
+import qualified Data.Traversable as T
 import qualified Data.List as L
 import qualified Data.HashMap.Strict as M
 
@@ -258,9 +260,40 @@ mapWithKey f (LinkedHashMap m s n) = (LinkedHashMap m' s' n)
     f'' (Just (k, v1)) = Just (k, f k v1)
     f'' _  = Nothing
 
+-- | /O(n*log(n))/ Transform this map by accumulating an Applicative result
+-- from every value.
+traverseWithKey :: Applicative f => (k -> v1 -> f v2) -> LinkedHashMap k v1
+                -> f (LinkedHashMap k v2)
+traverseWithKey f (LinkedHashMap m0 s0 n) = (\s -> LinkedHashMap (M.map (getV2 s) m0) s n) <$> s'
+  where
+    s' = T.traverse f' s0
+    f' (Just (k, v1)) = (\v -> Just (k, v)) <$> f k v1
+    f' Nothing = pure Nothing
+    getV2 s (Entry (ix, _)) = let (_, v2) = fromJust $ S.index s ix in Entry (ix, v2)
+{-# INLINE traverseWithKey #-}
+
 instance (NFData a) => NFData (Entry a) where
     rnf (Entry a) = rnf a
 
 instance (NFData k, NFData v) => NFData (LinkedHashMap k v) where
     rnf (LinkedHashMap m s _) = rnf m `seq` rnf s
+
+instance Functor (LinkedHashMap k) where
+    fmap = map
+
+instance F.Foldable (LinkedHashMap k) where
+    foldr f b0 (LinkedHashMap _ s _) = F.foldr f' b0 s
+      where
+        f' (Just (_, v)) b = f v b
+        f' _ b = b
+        
+instance T.Traversable (LinkedHashMap k) where
+    traverse f = traverseWithKey (const f)
+
+-- | /O(n)/ Reduce this map by applying a binary operator to all
+-- elements, using the given starting value (typically the
+-- right-identity of the operator).
+foldr :: (v -> a -> a) -> a -> LinkedHashMap k v -> a
+foldr = F.foldr
+{-# INLINE foldr #-}
 

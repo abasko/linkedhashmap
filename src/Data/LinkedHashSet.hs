@@ -26,7 +26,7 @@ module Data.LinkedHashSet
 
     -- * Folds
     -- , foldl'
-    -- , foldr
+    --, foldr
 
     -- * Filter
     -- , filter
@@ -36,7 +36,7 @@ module Data.LinkedHashSet
     , fromList
     ) where
 
-import Prelude hiding (null, lookup, map)
+import Prelude hiding (null, lookup, map, foldr)
 import Control.DeepSeq (NFData(rnf))
 import Data.Hashable (Hashable)
 import qualified Data.List as L

@@ -1,6 +1,8 @@
 module SeqTests where
 
+import Control.Monad.State
 import Data.LinkedHashMap.Seq
+import qualified Data.LinkedHashMap.Seq as LHM
 import qualified Data.HashMap.Strict as M
 
 test0 = fromList [(1 :: Int,"A"), (5, "B"), (7, "C"), (-6, "D")]
@@ -48,3 +50,21 @@ u4 = unions [t0, t1, t2]
 
 m1 = mapWithKey (\k v1 -> v1 ++ show k) t0
 
+hm0 = M.fromList [(1 :: Int,"A"), (5, "B"), (7, "C"), (-6, "D")]
+
+f0 = LHM.foldr (++) "" test0
+f1 = LHM.foldr (++) "" test1
+
+printItem :: Show a => a -> String -> IO String
+printItem k v = do
+  putStrLn $ (show k) ++ "->" ++ v
+  return $ v ++ "_processed"
+
+joinPrev :: Int -> String -> State String String
+joinPrev _ v = do
+  prev <- get
+  put v
+  return $ v ++ ":" ++ prev
+
+a0 = traverseWithKey printItem test0
+a1 = m where (m, _) = runState (traverseWithKey joinPrev test0) "0"
