@@ -353,7 +353,7 @@ foldrWithKey f b0 (LinkedHashMap _ s _) = F.foldr f' b0 s
 filterWithKey :: (Eq k, Hashable k) => (k -> v -> Bool) -> LinkedHashMap k v -> LinkedHashMap k v
 filterWithKey p m = fromList $ L.filter (uncurry p) $ toList m
 
--- | /O(n)/ Filter this map by retaining only elements which values
+-- | /O(n*log(n))/ Filter this map by retaining only elements which values
 -- satisfy a predicate.
 filter :: (Eq k, Hashable k) => (v -> Bool) -> LinkedHashMap k v -> LinkedHashMap k v
 filter p = filterWithKey (\_ v -> p v)
