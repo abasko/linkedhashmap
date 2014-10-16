@@ -1,6 +1,8 @@
 module SeqTests where
 
+import Prelude hiding (lookup, filter)
 import Control.Monad.State
+import Data.Hashable
 import Data.LinkedHashMap.Seq
 import qualified Data.LinkedHashMap.Seq as LHM
 import qualified Data.HashMap.Strict as M
@@ -52,9 +54,6 @@ m1 = mapWithKey (\k v1 -> v1 ++ show k) t0
 
 hm0 = M.fromList [(1 :: Int,"A"), (5, "B"), (7, "C"), (-6, "D")]
 
-f0 = LHM.foldr (++) "" test0
-f1 = LHM.foldr (++) "" test1
-
 printItem :: Show a => a -> String -> IO String
 printItem k v = do
   putStrLn $ (show k) ++ "->" ++ v
@@ -68,3 +67,20 @@ joinPrev _ v = do
 
 a0 = traverseWithKey printItem test0
 a1 = m where (m, _) = runState (traverseWithKey joinPrev test0) "0"
+
+d0 = difference test1 (delete 1 $ delete 7 $ test0)
+i0 = intersection test1 (delete 1 $ delete 7 $ test0)
+ik0 = intersectionWith (\v1 v2 -> v1 ++ v2) test1 (delete 1 $ delete 7 $ test0)
+
+f0 = LHM.foldr (++) "" test1
+f1 = LHM.foldr (++) "" y3
+f3 = LHM.foldl' (++) "" test1
+f4 = LHM.foldl' (++) "" y3
+
+fk0 = foldlWithKey' (\a k v -> a ++ (show k) ++ "=" ++ v ++ ",") "" test1
+fk1 = foldrWithKey (\k v a -> a ++ (show k) ++ "=" ++ v ++ ",") "" test1
+
+ff0 = filter (\v -> v == "B" || v == "C") test0
+ff1 = filterWithKey (\k v -> v == "B" || k == -6) test0
+
+fff0 = fromListWith (\v1 v2 -> v2 ++ v1) [(1 :: Int,"A"), (5, "B"), (7, "C"), (-6, "D"), (1 :: Int,"ZZZ")]

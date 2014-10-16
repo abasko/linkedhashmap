@@ -31,19 +31,19 @@ module Data.LinkedHashMap.Seq
     , traverseWithKey
 
       -- * Difference and intersection
-    -- , difference
-    -- , intersection
-    -- , intersectionWith
+    , difference
+    , intersection
+    , intersectionWith
 
       -- * Folds
-    -- , foldl'
-    -- , foldlWithKey'
+    , foldl'
+    , foldlWithKey'
     , foldr
-    -- , foldrWithKey
+    , foldrWithKey
 
       -- * Filter
-    -- , filter
-    -- , filterWithKey
+    , filter
+    , filterWithKey
 
       -- * Conversions
     , keys
@@ -52,11 +52,11 @@ module Data.LinkedHashMap.Seq
       -- ** Lists
     , toList
     , fromList
-    -- , fromListWith
+    , fromListWith
     , pack
     ) where
 
-import Prelude hiding (foldr, map, null, lookup)
+import Prelude hiding (foldr, map, null, lookup, filter)
 import Data.Maybe
 import Control.Applicative ((<$>), Applicative(pure))
 import Control.DeepSeq (NFData(rnf))
@@ -88,6 +88,12 @@ lookup k0 (LinkedHashMap m0 _ _) = case M.lookup k0 m0 of
                                      Just (Entry (_, v)) -> Just v
                                      Nothing -> Nothing
 {-# INLINABLE lookup #-}
+
+-- | /O(n*log n)/ Construct a map from a list of elements.  Uses
+-- the provided function to merge duplicate entries.
+fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> LinkedHashMap k v
+fromListWith f = L.foldl' (\ m (k, v) -> insertWith f k v m) empty
+{-# INLINE fromListWith #-}
 
 -- | /O(n*log n)/ Construct a map with the supplied mappings.  If the
 -- list contains duplicate mappings, the later mappings take
@@ -272,6 +278,87 @@ traverseWithKey f (LinkedHashMap m0 s0 n) = (\s -> LinkedHashMap (M.map (getV2 s
     getV2 s (Entry (ix, _)) = let (_, v2) = fromJust $ S.index s ix in Entry (ix, v2)
 {-# INLINE traverseWithKey #-}
 
+-- | /O(n*log m)/ Difference of two maps. Return elements of the first map
+-- not existing in the second.
+difference :: (Eq k, Hashable k) => LinkedHashMap k v -> LinkedHashMap k w -> LinkedHashMap k v
+difference a b = foldlWithKey' go empty a
+  where
+    go m k v = case lookup k b of
+                 Nothing -> insert k v m
+                 _       -> m
+{-# INLINABLE difference #-}
+
+-- | /O(n*log m)/ Intersection of two maps. Return elements of the first
+-- map for keys existing in the second.
+intersection :: (Eq k, Hashable k) => LinkedHashMap k v -> LinkedHashMap k w -> LinkedHashMap k v
+intersection a b = foldlWithKey' go empty a
+  where
+    go m k v = case lookup k b of
+                 Just _ -> insert k v m
+                 _      -> m
+{-# INLINABLE intersection #-}
+
+-- | /O(n+m)/ Intersection of two maps. If a key occurs in both maps
+-- the provided function is used to combine the values from the two
+-- maps.
+intersectionWith :: (Eq k, Hashable k) => (v1 -> v2 -> v3) -> LinkedHashMap k v1
+                 -> LinkedHashMap k v2 -> LinkedHashMap k v3
+intersectionWith f a b = foldlWithKey' go empty a
+  where
+    go m k v = case lookup k b of
+                 Just w -> insert k (f v w) m
+                 _      -> m
+{-# INLINABLE intersectionWith #-}
+
+-- | /O(n)/ Reduce this map by applying a binary operator to all
+-- elements, using the given starting value (typically the
+-- left-identity of the operator).  Each application of the operator
+-- is evaluated before before using the result in the next
+-- application.  This function is strict in the starting value.
+foldl' :: (a -> v -> a) -> a -> LinkedHashMap k v -> a
+foldl' f b0 (LinkedHashMap _ s _) = F.foldl' f' b0 s
+  where
+    f' b (Just (_, v)) = f b v
+    f' b _ = b
+
+-- | /O(n)/ Reduce this map by applying a binary operator to all
+-- elements, using the given starting value (typically the
+-- right-identity of the operator).
+foldr :: (v -> a -> a) -> a -> LinkedHashMap k v -> a
+foldr = F.foldr
+{-# INLINE foldr #-}
+
+-- | /O(n)/ Reduce this map by applying a binary operator to all
+-- elements, using the given starting value (typically the
+-- left-identity of the operator).  Each application of the operator
+-- is evaluated before before using the result in the next
+-- application.  This function is strict in the starting value.
+foldlWithKey' :: (a -> k -> v -> a) -> a -> LinkedHashMap k v -> a
+foldlWithKey' f b0 (LinkedHashMap _ s _) = F.foldl' f' b0 s
+  where
+    f' b (Just (k, v)) = f b k v
+    f' b _ = b
+
+-- | /O(n)/ Reduce this map by applying a binary operator to all
+-- elements, using the given starting value (typically the
+-- right-identity of the operator).
+foldrWithKey :: (k -> v -> a -> a) -> a -> LinkedHashMap k v -> a
+foldrWithKey f b0 (LinkedHashMap _ s _) = F.foldr f' b0 s
+  where
+    f' (Just (k, v)) b = f k v b
+    f' _ b = b
+
+-- | /O(n*log(n))/ Filter this map by retaining only elements satisfying a
+-- predicate.
+filterWithKey :: (Eq k, Hashable k) => (k -> v -> Bool) -> LinkedHashMap k v -> LinkedHashMap k v
+filterWithKey p m = fromList $ L.filter (uncurry p) $ toList m
+
+-- | /O(n)/ Filter this map by retaining only elements which values
+-- satisfy a predicate.
+filter :: (Eq k, Hashable k) => (v -> Bool) -> LinkedHashMap k v -> LinkedHashMap k v
+filter p = filterWithKey (\_ v -> p v)
+{-# INLINE filter #-}
+
 instance (NFData a) => NFData (Entry a) where
     rnf (Entry a) = rnf a
 
@@ -289,11 +376,3 @@ instance F.Foldable (LinkedHashMap k) where
         
 instance T.Traversable (LinkedHashMap k) where
     traverse f = traverseWithKey (const f)
-
--- | /O(n)/ Reduce this map by applying a binary operator to all
--- elements, using the given starting value (typically the
--- right-identity of the operator).
-foldr :: (v -> a -> a) -> a -> LinkedHashMap k v -> a
-foldr = F.foldr
-{-# INLINE foldr #-}
-
