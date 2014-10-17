@@ -74,20 +74,11 @@ newtype Entry a = Entry { unEntry :: (Int, a) } deriving (Show)
 instance Eq a => Eq (Entry a) where
     (Entry (_, a)) == (Entry (_, b)) = a == b
 
-data LinkedHashMap k v = LinkedHashMap (M.HashMap k (Entry v)) (IM.IntMap (k, v)) (IORef Int)
+data LinkedHashMap k v = LinkedHashMap (M.HashMap k (Entry v)) (IM.IntMap (k, v)) Int
 
 instance (Show k, Show v) => Show (LinkedHashMap k v) where
     showsPrec d m@(LinkedHashMap _ _ _) = showParen (d > 10) $
       showString "fromList " . shows (toList m)
-
-newCounter :: Int -> IORef Int
-newCounter n = unsafePerformIO (newIORef n)
-
-getCounter :: IORef Int -> Int
-getCounter rn = unsafePerformIO $ readIORef rn
-
-incCounter :: IORef Int -> Int
-incCounter rn = unsafePerformIO $ atomicModifyIORef rn $ \n -> (n + 1, n + 1)
 
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or 'Nothing' if this map contains no mapping for the key.
@@ -118,13 +109,13 @@ lookupDefault def k t = case lookup k t of
 -- | /O(log n)/ Remove the mapping for the specified key from this map
 -- if present.
 delete :: (Eq k, Hashable k) => k -> LinkedHashMap k v -> LinkedHashMap k v
-delete k0 (LinkedHashMap m s rn) = LinkedHashMap (M.delete k0 m) (case M.lookup k0 m of
-                                                                    Nothing -> s
-                                                                    Just (Entry (i, _)) -> IM.delete i s) rn
+delete k0 (LinkedHashMap m s maxn) = LinkedHashMap (M.delete k0 m) (case M.lookup k0 m of
+                                                                      Nothing -> s
+                                                                      Just (Entry (i, _)) -> IM.delete i s) maxn
 
 -- | /O(1)/ Construct an empty map.
 empty :: LinkedHashMap k v
-empty = LinkedHashMap M.empty IM.empty (newCounter minBound)
+empty = LinkedHashMap M.empty IM.empty minBound
 
 -- | /O(1)/ Construct a map with a single element.
 singleton :: (Eq k, Hashable k) => k -> v -> LinkedHashMap k v
@@ -174,13 +165,13 @@ toList (LinkedHashMap _ s _) = IM.elems s
 -- key in this map.  If this map previously contained a mapping for
 -- the key, the old value is replaced.
 insert :: (Eq k, Hashable k) => k -> v -> LinkedHashMap k v -> LinkedHashMap k v
-insert k v (LinkedHashMap m s rn) = s' `seq` LinkedHashMap m' s' rn
+insert k v (LinkedHashMap m s maxn) = s' `seq` LinkedHashMap m' s' maxn'
   where 
     m' = M.insert k (Entry (n', v)) m
     s' = IM.insert n' (k, v) s
-    n' = case M.lookup k m of
-          Just (Entry (n, _)) -> n
-          Nothing -> incCounter rn
+    (n', maxn') = case M.lookup k m of
+                    Just (Entry (n, _)) -> (n, maxn)
+                    Nothing -> let newn = maxn + 1 in (newn, newn)
 {-# INLINABLE insert #-}
 
 -- | /O(log n)/ Associate the value with the key in this map.  If
@@ -191,18 +182,18 @@ insert k v (LinkedHashMap m s rn) = s' `seq` LinkedHashMap m' s' rn
 -- > insertWith f k v map
 -- >   where f new old = new + old
 insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> LinkedHashMap k v -> LinkedHashMap k v
-insertWith f k v0 (LinkedHashMap m s rn) = s' `seq` LinkedHashMap m' s' rn
+insertWith f k v0 (LinkedHashMap m s maxn) = s' `seq` LinkedHashMap m' s' maxn'
   where
     m' = M.insert k (Entry (n', v')) m
     s' = IM.insert n' (k, v') s
-    (n', v') = case M.lookup k m of
-                 Just (Entry (n, v)) -> (n, f v0 v)
-                 Nothing -> (incCounter rn, v0)
+    (n', v', maxn') = case M.lookup k m of
+                        Just (Entry (n, v)) -> (n, f v0 v, maxn)
+                        Nothing -> let newn = maxn + 1 in (newn, v0, newn)
 
 -- | /O(log n)/ Adjust the value tied to a given key in this map only
 -- if it is present. Otherwise, leave the map alone.
 adjust :: (Eq k, Hashable k) => (v -> v) -> k -> LinkedHashMap k v -> LinkedHashMap k v
-adjust f k (LinkedHashMap m s rn) = s' `seq` LinkedHashMap m' s' rn
+adjust f k (LinkedHashMap m s maxn) = LinkedHashMap m' s' maxn
   where
     m' = M.adjust f' k m
     f' (Entry (ix, v)) = Entry (ix, f v)
@@ -236,7 +227,7 @@ map f = mapWithKey (const f)
 
 -- | /O(n)/ Transform this map by applying a function to every value.
 mapWithKey :: (k -> v1 -> v2) -> LinkedHashMap k v1 -> LinkedHashMap k v2
-mapWithKey f (LinkedHashMap m s n) = (LinkedHashMap m' s' n)
+mapWithKey f (LinkedHashMap m s maxn) = (LinkedHashMap m' s' maxn)
   where
     m' = M.mapWithKey f' m
     s' = fmap f'' s
@@ -247,7 +238,7 @@ mapWithKey f (LinkedHashMap m s n) = (LinkedHashMap m' s' n)
 -- from every value.
 traverseWithKey :: Applicative f => (k -> v1 -> f v2) -> LinkedHashMap k v1
                 -> f (LinkedHashMap k v2)
-traverseWithKey f (LinkedHashMap m0 s0 n) = (\s -> LinkedHashMap (M.map (getV2 s) m0) s n) <$> s'
+traverseWithKey f (LinkedHashMap m0 s0 maxn) = (\s -> LinkedHashMap (M.map (getV2 s) m0) s maxn) <$> s'
   where
     s' = T.traverse f' s0
     f' (k, v1) = (\v -> (k, v)) <$> f k v1
