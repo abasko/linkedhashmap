@@ -53,6 +53,7 @@ module Data.LinkedHashMap.Seq
     , toList
     , fromList
     , fromListWith
+
     , pack
     ) where
 
@@ -231,15 +232,14 @@ adjust f k (LinkedHashMap m s n) = LinkedHashMap m' s' n
            Just (Entry (ix, v)) -> S.update ix (Just (k, v)) s
            Nothing -> s
 
--- | /O(m*log n)/ The union of two maps, n - size of first map. If a key occurs in both maps, the
--- mapping from the first will be the mapping in the result.
+-- | /O(m*log n)/ The union of two maps, n - size of the first map. If a key occurs in both maps,
+-- the mapping from the first will be the mapping in the result.
 union :: (Eq k, Hashable k) => LinkedHashMap k v -> LinkedHashMap k v -> LinkedHashMap k v
 union = unionWith const
 {-# INLINABLE union #-}
 
--- | /O(m*log n)/ The union of two maps.  If a key occurs in both maps,
--- the provided function (first argument) will be used to compute the
--- result.
+-- | /O(m*log n)/ The union of two maps, n - size of the first map.  If a key occurs in both maps,
+-- the provided function (first argument) will be used to compute the result.
 unionWith :: (Eq k, Hashable k) => (v -> v -> v) -> LinkedHashMap k v -> LinkedHashMap k v
           -> LinkedHashMap k v
 unionWith f m1 m2 = m'

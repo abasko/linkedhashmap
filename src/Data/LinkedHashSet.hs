@@ -21,22 +21,22 @@ module Data.LinkedHashSet
     , map
 
       -- * Difference and intersection
-    -- , difference
-    -- , intersection
+    , difference
+    , intersection
 
     -- * Folds
-    -- , foldl'
-    --, foldr
+    , foldl'
+    , foldr
 
     -- * Filter
-    -- , filter
+    , filter
 
     -- ** Lists
     , toList
     , fromList
     ) where
 
-import Prelude hiding (null, lookup, map, foldr)
+import Prelude hiding (null, lookup, map, foldr, filter)
 import Control.DeepSeq (NFData(rnf))
 import Data.Hashable (Hashable)
 import qualified Data.List as L
@@ -105,42 +105,42 @@ map :: (Hashable b, Eq b) => (a -> b) -> LinkedHashSet a -> LinkedHashSet b
 map f = fromList . L.map f . toList
 {-# INLINE map #-}
 
--- -- | /O(n)/ Difference of two sets. Return elements of the first set
--- -- not existing in the second.
--- difference :: (Eq a, Hashable a) => LinkedHashSet a -> LinkedHashSet a -> LinkedHashSet a
--- difference (LinkedHashSet a) (LinkedHashSet b) = LinkedHashSet (M.difference a b)
--- {-# INLINABLE difference #-}
+-- | /O(n)/ Difference of two sets. Return elements of the first set
+-- not existing in the second.
+difference :: (Eq a, Hashable a) => LinkedHashSet a -> LinkedHashSet a -> LinkedHashSet a
+difference (LinkedHashSet a) (LinkedHashSet b) = LinkedHashSet (M.difference a b)
+{-# INLINABLE difference #-}
 
--- -- | /O(n)/ Intersection of two sets. Return elements present in both
--- -- the first set and the second.
--- intersection :: (Eq a, Hashable a) => LinkedHashSet a -> LinkedHashSet a -> LinkedHashSet a
--- intersection (LinkedHashSet a) (LinkedHashSet b) = LinkedHashSet (M.intersection a b)
--- {-# INLINABLE intersection #-}
+-- | /O(n)/ Intersection of two sets. Return elements present in both
+-- the first set and the second.
+intersection :: (Eq a, Hashable a) => LinkedHashSet a -> LinkedHashSet a -> LinkedHashSet a
+intersection (LinkedHashSet a) (LinkedHashSet b) = LinkedHashSet (M.intersection a b)
+{-# INLINABLE intersection #-}
 
--- -- | /O(n)/ Reduce this set by applying a binary operator to all
--- -- elements, using the given starting value (typically the
--- -- left-identity of the operator).  Each application of the operator
--- -- is evaluated before before using the result in the next
--- -- application.  This function is strict in the starting value.
--- foldl' :: (a -> b -> a) -> a -> LinkedHashSet b -> a
--- foldl' f z0 = M.foldlWithKey' g z0 . asMap
---   where g z k _ = f z k
--- {-# INLINE foldl' #-}
+-- | /O(n)/ Reduce this set by applying a binary operator to all
+-- elements, using the given starting value (typically the
+-- left-identity of the operator).  Each application of the operator
+-- is evaluated before before using the result in the next
+-- application.  This function is strict in the starting value.
+foldl' :: (a -> b -> a) -> a -> LinkedHashSet b -> a
+foldl' f z0 = M.foldlWithKey' g z0 . asMap
+  where g z k _ = f z k
+{-# INLINE foldl' #-}
 
--- -- | /O(n)/ Reduce this set by applying a binary operator to all
--- -- elements, using the given starting value (typically the
--- -- right-identity of the operator).
--- foldr :: (b -> a -> a) -> a -> LinkedHashSet b -> a
--- foldr f z0 = foldrWithKey g z0 . asMap
---   where g k _ z = f k z
--- {-# INLINE foldr #-}
+-- | /O(n)/ Reduce this set by applying a binary operator to all
+-- elements, using the given starting value (typically the
+-- right-identity of the operator).
+foldr :: (b -> a -> a) -> a -> LinkedHashSet b -> a
+foldr f z0 = M.foldrWithKey g z0 . asMap
+  where g k _ z = f k z
+{-# INLINE foldr #-}
 
--- -- | /O(n)/ Filter this set by retaining only elements satisfying a
--- -- predicate.
--- filter :: (a -> Bool) -> LinkedHashSet a -> LinkedHashSet a
--- filter p = LinkedHashSet . H.filterWithKey q . asMap
---   where q k _ = p k
--- {-# INLINE filter #-}
+-- | /O(n)/ Filter this set by retaining only elements satisfying a
+-- predicate.
+filter :: (Eq a, Hashable a) => (a -> Bool) -> LinkedHashSet a -> LinkedHashSet a
+filter p = LinkedHashSet . M.filterWithKey q . asMap
+  where q k _ = p k
+{-# INLINE filter #-}
 
 -- | /O(n)/ Return a list of this set's elements.  The list is produced lazily.
 toList :: LinkedHashSet a -> [a]

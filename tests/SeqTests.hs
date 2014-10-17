@@ -35,8 +35,8 @@ test4 = fromList ([] :: [(Int, String)])
 
 y3'@(LinkedHashMap mm3' s3' n3') = pack y3
 
-z6 = insertWith (++) 5 "_ZZZ" test0
-z7 = insertWith (++) 11 "_ZZZ" test0
+z6 = insertWith (++) 5 "ZZZ_" test0
+z7 = insertWith (++) 11 "ZZZ_" test0
 
 z8 = adjust (\v0 -> v0 ++ "_adjusted") 5 test0
 z9 = adjust (\v0 -> v0 ++ "_adjusted") 123 test0
