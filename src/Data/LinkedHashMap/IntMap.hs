@@ -58,8 +58,6 @@ where
 
 import Prelude hiding (foldr, map, null, lookup, filter)
 import Data.Maybe
-import Data.IORef
-import System.IO.Unsafe
 import Data.Hashable (Hashable)
 import Control.DeepSeq (NFData(rnf))
 import Control.Applicative ((<$>), Applicative)
@@ -70,9 +68,6 @@ import qualified Data.HashMap.Strict as M
 import qualified Data.IntMap.Strict as IM
 
 newtype Entry a = Entry { unEntry :: (Int, a) } deriving (Show)
-
-instance Eq a => Eq (Entry a) where
-    (Entry (_, a)) == (Entry (_, b)) = a == b
 
 data LinkedHashMap k v = LinkedHashMap (M.HashMap k (Entry v)) (IM.IntMap (k, v)) Int
 

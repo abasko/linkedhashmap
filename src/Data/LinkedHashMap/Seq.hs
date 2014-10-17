@@ -72,9 +72,6 @@ import qualified Data.HashMap.Strict as M
 
 newtype Entry a = Entry { unEntry :: (Int, a) } deriving (Show)
 
-instance Eq a => Eq (Entry a) where
-    (Entry (_, a)) == (Entry (_, b)) = a == b
-
 -- Contains HashMap, ordered keys Seq and number of not deleted keys in a sequence (size of HashMap)
 data LinkedHashMap k v = LinkedHashMap (M.HashMap k (Entry v)) (Seq (Maybe (k, v))) !Int
 
