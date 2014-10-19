@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
-module Data.LinkedHashMap.IntMap 
+module Data.LinkedHashMap.IntMap
     (
      LinkedHashMap(..)
 
@@ -67,9 +67,9 @@ import qualified Data.Traversable as T
 import qualified Data.HashMap.Strict as M
 import qualified Data.IntMap.Strict as IM
 
-newtype Entry a = Entry { unEntry :: (Int, a) } deriving (Show)
+data Entry a = Entry {-# UNPACK #-}!Int a deriving (Show)
 
-data LinkedHashMap k v = LinkedHashMap (M.HashMap k (Entry v)) (IM.IntMap (k, v)) Int
+data LinkedHashMap k v = LinkedHashMap (M.HashMap k (Entry v)) (IM.IntMap (k, v)) {-# UNPACK #-}!Int
 
 instance (Show k, Show v) => Show (LinkedHashMap k v) where
     showsPrec d m@(LinkedHashMap _ _ _) = showParen (d > 10) $
@@ -79,7 +79,7 @@ instance (Show k, Show v) => Show (LinkedHashMap k v) where
 -- or 'Nothing' if this map contains no mapping for the key.
 lookup :: (Eq k, Hashable k) => k -> LinkedHashMap k v -> Maybe v
 lookup k0 (LinkedHashMap m0 _ _) = case M.lookup k0 m0 of
-                                     Just (Entry (_, v)) -> Just v
+                                     Just (Entry _ v) -> Just v
                                      Nothing -> Nothing
 {-# INLINABLE lookup #-}
 
@@ -106,7 +106,7 @@ lookupDefault def k t = case lookup k t of
 delete :: (Eq k, Hashable k) => k -> LinkedHashMap k v -> LinkedHashMap k v
 delete k0 (LinkedHashMap m s maxn) = LinkedHashMap (M.delete k0 m) (case M.lookup k0 m of
                                                                       Nothing -> s
-                                                                      Just (Entry (i, _)) -> IM.delete i s) maxn
+                                                                      Just (Entry i _) -> IM.delete i s) maxn
 
 -- | /O(1)/ Construct an empty map.
 empty :: LinkedHashMap k v
@@ -162,10 +162,10 @@ toList (LinkedHashMap _ s _) = IM.elems s
 insert :: (Eq k, Hashable k) => k -> v -> LinkedHashMap k v -> LinkedHashMap k v
 insert k v (LinkedHashMap m s maxn) = s' `seq` LinkedHashMap m' s' maxn'
   where 
-    m' = M.insert k (Entry (n', v)) m
+    m' = M.insert k (Entry n' v) m
     s' = IM.insert n' (k, v) s
     (n', maxn') = case M.lookup k m of
-                    Just (Entry (n, _)) -> (n, maxn)
+                    Just (Entry n _) -> (n, maxn)
                     Nothing -> let newn = maxn + 1 in (newn, newn)
 {-# INLINABLE insert #-}
 
@@ -179,10 +179,10 @@ insert k v (LinkedHashMap m s maxn) = s' `seq` LinkedHashMap m' s' maxn'
 insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> LinkedHashMap k v -> LinkedHashMap k v
 insertWith f k v0 (LinkedHashMap m s maxn) = s' `seq` LinkedHashMap m' s' maxn'
   where
-    m' = M.insert k (Entry (n', v')) m
+    m' = M.insert k (Entry n' v') m
     s' = IM.insert n' (k, v') s
     (n', v', maxn') = case M.lookup k m of
-                        Just (Entry (n, v)) -> (n, f v0 v, maxn)
+                        Just (Entry n v) -> (n, f v0 v, maxn)
                         Nothing -> let newn = maxn + 1 in (newn, v0, newn)
 
 -- | /O(log n)/ Adjust the value tied to a given key in this map only
@@ -191,9 +191,9 @@ adjust :: (Eq k, Hashable k) => (v -> v) -> k -> LinkedHashMap k v -> LinkedHash
 adjust f k (LinkedHashMap m s maxn) = LinkedHashMap m' s' maxn
   where
     m' = M.adjust f' k m
-    f' (Entry (ix, v)) = Entry (ix, f v)
+    f' (Entry ix v) = Entry ix $ f v
     s' = case M.lookup k m' of
-           Just (Entry (ix, v)) -> IM.insert ix (k, v) s
+           Just (Entry ix v) -> IM.insert ix (k, v) s
            Nothing -> s
 
 -- | /O(m*log n)/ The union of two maps, n - size of the first map. If a key occurs in both maps,
@@ -226,7 +226,7 @@ mapWithKey f (LinkedHashMap m s maxn) = (LinkedHashMap m' s' maxn)
   where
     m' = M.mapWithKey f' m
     s' = fmap f'' s
-    f' k (Entry (ix, v1)) = Entry (ix, f k v1)
+    f' k (Entry ix v1) = Entry ix $ f k v1
     f'' (k, v1) = (k, f k v1)
 
 -- | /O(n*log(n))/ Transform this map by accumulating an Applicative result
@@ -237,7 +237,7 @@ traverseWithKey f (LinkedHashMap m0 s0 maxn) = (\s -> LinkedHashMap (M.map (getV
   where
     s' = T.traverse f' s0
     f' (k, v1) = (\v -> (k, v)) <$> f k v1
-    getV2 s (Entry (ix, _)) = let (_, v2) = fromJust $ IM.lookup ix s in Entry (ix, v2)
+    getV2 s (Entry ix _) = let (_, v2) = fromJust $ IM.lookup ix s in Entry ix v2
 {-# INLINE traverseWithKey #-}
 
 -- | /O(n*log m)/ Difference of two maps. Return elements of the first map
@@ -326,7 +326,7 @@ fromListWith f = L.foldl' (\ m (k, v) -> insertWith f k v m) empty
 {-# INLINE fromListWith #-}
 
 instance (NFData a) => NFData (Entry a) where
-    rnf (Entry a) = rnf a
+    rnf (Entry _ a) = rnf a
 
 instance (NFData k, NFData v) => NFData (LinkedHashMap k v) where
     rnf (LinkedHashMap m s _) = rnf m `seq` rnf s

@@ -70,10 +70,11 @@ import qualified Data.Traversable as T
 import qualified Data.List as L
 import qualified Data.HashMap.Strict as M
 
-newtype Entry a = Entry { unEntry :: (Int, a) } deriving (Show)
+data Entry a = Entry {-# UNPACK #-}!Int a deriving (Show)
+data MaybePair k v = NothingPair | JustPair k v deriving (Show)
 
 -- Contains HashMap, ordered keys Seq and number of not deleted keys in a sequence (size of HashMap)
-data LinkedHashMap k v = LinkedHashMap (M.HashMap k (Entry v)) (Seq (Maybe (k, v))) !Int
+data LinkedHashMap k v = LinkedHashMap (M.HashMap k (Entry v)) (Seq (MaybePair k v)) {-# UNPACK #-}!Int
 
 instance (Show k, Show v) => Show (LinkedHashMap k v) where
     showsPrec d m@(LinkedHashMap _ _ _) = showParen (d > 10) $
@@ -83,7 +84,7 @@ instance (Show k, Show v) => Show (LinkedHashMap k v) where
 -- or 'Nothing' if this map contains no mapping for the key.
 lookup :: (Eq k, Hashable k) => k -> LinkedHashMap k v -> Maybe v
 lookup k0 (LinkedHashMap m0 _ _) = case M.lookup k0 m0 of
-                                     Just (Entry (_, v)) -> Just v
+                                     Just (Entry _ v) -> Just v
                                      Nothing -> Nothing
 {-# INLINABLE lookup #-}
 
@@ -99,23 +100,23 @@ fromListWith f = L.foldl' (\ m (k, v) -> insertWith f k v m) empty
 fromList :: (Eq k, Hashable k) => [(k, v)] -> LinkedHashMap k v
 fromList ps = LinkedHashMap m' s' len'
   where
-    m0 = M.fromList $ L.map (\(i, (k, v)) -> (k, Entry (i, v))) $ zip [0..] ps
-    s0 = S.fromList $ L.map (\(k, v) -> Just (k, v)) ps
+    m0 = M.fromList $ L.map (\(i, (k, v)) -> (k, Entry i v)) $ zip [0..] ps
+    s0 = S.fromList $ L.map (\(k, v) -> JustPair k v) ps
     len = M.size m0
     (m', s', len') = if len == S.length s0
                      then (m0, s0, len)
                      else F.foldl' skipDups (m0, S.empty, 0) s0
-    skipDups (m, s, n) jkv@(Just (k, _)) 
+    skipDups (m, s, n) jkv@(JustPair k _) 
       | n == ix = (m, s |> jkv, n + 1)
       | n > ix = (m, s, n)
-      | otherwise = (M.insert k (Entry (n, v)) m, s |> Just (k, v), n + 1)
+      | otherwise = (M.insert k (Entry n v) m, s |> JustPair k v, n + 1)
       where 
-        (ix, v) = unEntry $ fromJust $ M.lookup k m
+        Entry ix v = fromJust $ M.lookup k m
     skipDups _ _ = error "Data.LinkedHashMap.Seq invariant violated"
 
 -- | /O(n)/ Return a list of this map's elements.  The list is produced lazily.
 toList ::LinkedHashMap k v -> [(k, v)]
-toList (LinkedHashMap _ s _) = catMaybes (F.toList s)
+toList (LinkedHashMap _ s _) = [(k, v) | JustPair k v <- F.toList s] 
 {-# INLINABLE toList #-}
 
 -- | /O(log n)/ Associate the specified value with the specified
@@ -124,10 +125,10 @@ toList (LinkedHashMap _ s _) = catMaybes (F.toList s)
 insert :: (Eq k, Hashable k) => k -> v -> LinkedHashMap k v -> LinkedHashMap k v
 insert k !v (LinkedHashMap m s n) = LinkedHashMap m' s' n'
   where 
-    m' = M.insert k (Entry (ix', v)) m
+    m' = M.insert k (Entry ix' v) m
     (s', ix', n') = case M.lookup k m of
-                      Just (Entry (ix, _)) -> (s, ix, n)
-                      Nothing -> (s |> Just (k, v), S.length s, n+1)
+                      Just (Entry ix _) -> (s, ix, n)
+                      Nothing -> (s |> JustPair k v, S.length s, n+1)
 {-# INLINABLE insert #-}
 
 pack :: (Eq k, Hashable k) => LinkedHashMap k v -> LinkedHashMap k v
@@ -143,7 +144,7 @@ delete k0 (LinkedHashMap m s n) = if S.length s `div` 2 >= n
     lhm = LinkedHashMap m' s' n'
     (m', s', n') = case M.lookup k0 m of
                      Nothing -> (m, s, n)
-                     Just (Entry (i, _)) -> (M.delete k0 m, S.update i Nothing s, n-1)
+                     Just (Entry i _) -> (M.delete k0 m, S.update i NothingPair s, n-1)
                                            
 -- | /O(1)/ Construct an empty map.
 empty :: LinkedHashMap k v
@@ -210,13 +211,13 @@ insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> LinkedHashMap k v
 insertWith f k v (LinkedHashMap m s n) = LinkedHashMap m' s' n'
   where
     m' = M.insertWith f' k v' m
-    f' (Entry (_, v1)) (Entry (ix, v2)) = Entry (ix, f v1 v2)
+    f' (Entry _ v1) (Entry ix v2) = Entry ix $ f v1 v2
     slen = S.length s
-    v' = Entry (slen, v)
-    (ixnew, vnew) = unEntry $ fromJust $ M.lookup k m'
+    v' = Entry slen v
+    Entry ixnew vnew = fromJust $ M.lookup k m'
     (s', n') = if ixnew == slen 
-               then (s |> Just (k, vnew), n + 1)
-               else (S.update ixnew (Just (k, vnew)) s, n)
+               then (s |> JustPair k vnew, n + 1)
+               else (S.update ixnew (JustPair k vnew) s, n)
 
 -- | /O(log n)/ Adjust the value tied to a given key in this map only
 -- if it is present. Otherwise, leave the map alone.
@@ -224,9 +225,9 @@ adjust :: (Eq k, Hashable k) => (v -> v) -> k -> LinkedHashMap k v -> LinkedHash
 adjust f k (LinkedHashMap m s n) = LinkedHashMap m' s' n
   where
     m' = M.adjust f' k m
-    f' (Entry (ix, v)) = Entry (ix, f v)
+    f' (Entry ix v) = Entry ix $ f v
     s' = case M.lookup k m' of
-           Just (Entry (ix, v)) -> S.update ix (Just (k, v)) s
+           Just (Entry ix v) -> S.update ix (JustPair k v) s
            Nothing -> s
 
 -- | /O(m*log n)/ The union of two maps, n - size of the first map. If a key occurs in both maps,
@@ -259,9 +260,9 @@ mapWithKey f (LinkedHashMap m s n) = (LinkedHashMap m' s' n)
   where
     m' = M.mapWithKey f' m
     s' = fmap f'' s
-    f' k (Entry (ix, v1)) = Entry (ix, f k v1)
-    f'' (Just (k, v1)) = Just (k, f k v1)
-    f'' _  = Nothing
+    f' k (Entry ix v1) = Entry ix $ f k v1
+    f'' (JustPair k v1) = JustPair k $ f k v1
+    f'' _  = NothingPair
 
 -- | /O(n*log(n))/ Transform this map by accumulating an Applicative result
 -- from every value.
@@ -270,9 +271,10 @@ traverseWithKey :: Applicative f => (k -> v1 -> f v2) -> LinkedHashMap k v1
 traverseWithKey f (LinkedHashMap m0 s0 n) = (\s -> LinkedHashMap (M.map (getV2 s) m0) s n) <$> s'
   where
     s' = T.traverse f' s0
-    f' (Just (k, v1)) = (\v -> Just (k, v)) <$> f k v1
-    f' Nothing = pure Nothing
-    getV2 s (Entry (ix, _)) = let (_, v2) = fromJust $ S.index s ix in Entry (ix, v2)
+    f' (JustPair k v1) = (\v -> JustPair k v) <$> f k v1
+    f' NothingPair = pure NothingPair
+    getV2 s (Entry ix _) = let JustPair _ v2 = S.index s ix in Entry ix v2
+
 {-# INLINE traverseWithKey #-}
 
 -- | /O(n*log m)/ Difference of two maps. Return elements of the first map
@@ -315,7 +317,7 @@ intersectionWith f a b = foldlWithKey' go empty a
 foldl' :: (a -> v -> a) -> a -> LinkedHashMap k v -> a
 foldl' f b0 (LinkedHashMap _ s _) = F.foldl' f' b0 s
   where
-    f' b (Just (_, v)) = f b v
+    f' b (JustPair _ v) = f b v
     f' b _ = b
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
@@ -333,7 +335,7 @@ foldr = F.foldr
 foldlWithKey' :: (a -> k -> v -> a) -> a -> LinkedHashMap k v -> a
 foldlWithKey' f b0 (LinkedHashMap _ s _) = F.foldl' f' b0 s
   where
-    f' b (Just (k, v)) = f b k v
+    f' b (JustPair k v) = f b k v
     f' b _ = b
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
@@ -342,7 +344,7 @@ foldlWithKey' f b0 (LinkedHashMap _ s _) = F.foldl' f' b0 s
 foldrWithKey :: (k -> v -> a -> a) -> a -> LinkedHashMap k v -> a
 foldrWithKey f b0 (LinkedHashMap _ s _) = F.foldr f' b0 s
   where
-    f' (Just (k, v)) b = f k v b
+    f' (JustPair k v) b = f k v b
     f' _ b = b
 
 -- | /O(n*log(n))/ Filter this map by retaining only elements satisfying a
@@ -357,7 +359,11 @@ filter p = filterWithKey (\_ v -> p v)
 {-# INLINE filter #-}
 
 instance (NFData a) => NFData (Entry a) where
-    rnf (Entry a) = rnf a
+    rnf (Entry _ a) = rnf a
+
+instance (NFData a, NFData b) => NFData (MaybePair a b) where
+    rnf (JustPair a b) = rnf a `seq` rnf b
+    rnf NothingPair = ()
 
 instance (NFData k, NFData v) => NFData (LinkedHashMap k v) where
     rnf (LinkedHashMap m s _) = rnf m `seq` rnf s
@@ -368,7 +374,7 @@ instance Functor (LinkedHashMap k) where
 instance F.Foldable (LinkedHashMap k) where
     foldr f b0 (LinkedHashMap _ s _) = F.foldr f' b0 s
       where
-        f' (Just (_, v)) b = f v b
+        f' (JustPair _ v) b = f v b
         f' _ b = b
         
 instance T.Traversable (LinkedHashMap k) where
