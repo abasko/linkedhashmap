@@ -127,7 +127,7 @@ insert k !v (LinkedHashMap m s n) = LinkedHashMap m' s' n'
   where 
     m' = M.insert k (Entry ix' v) m
     (s', ix', n') = case M.lookup k m of
-                      Just (Entry ix _) -> (s, ix, n)
+                      Just (Entry ix _) -> (S.update ix (JustPair k v) s, ix, n)
                       Nothing -> (s |> JustPair k v, S.length s, n+1)
 {-# INLINABLE insert #-}
 
