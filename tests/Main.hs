@@ -99,6 +99,9 @@ test22_2 = LM2.filterWithKey (\k v -> v == "B" || k == -6) test0_2
 test23_1 = LM1.fromListWith (\v1 v2 -> v2 ++ v1) [(1 :: Int,"A"), (5, "B"), (7, "C"), (-6, "D"), (1 :: Int,"ZZZ")]
 test23_2 = LM2.fromListWith (\v1 v2 -> v2 ++ v1) [(1 :: Int,"A"), (5, "B"), (7, "C"), (-6, "D"), (1 :: Int,"ZZZ")]
 
+test24_1 = LM1.insert 5 "D" test0_1
+test24_2 = LM2.insert 5 "D" test0_2
+
 unitTests :: TestTree
 unitTests = testGroup "Unit tests"
   [ testCase "test0" $ LM1.toList test0_1 @?= LM2.toList test0_2,
@@ -131,7 +134,9 @@ unitTests = testGroup "Unit tests"
     testCase "test20" $ test20_1 @?= test20_2,
     testCase "test21" $ LM1.toList test21_1 @?= LM2.toList test21_2,
     testCase "test22" $ LM1.toList test22_1 @?= LM2.toList test22_2,
-    testCase "test23" $ LM1.toList test23_1 @?= LM2.toList test23_2
+    testCase "test23" $ LM1.toList test23_1 @?= LM2.toList test23_2,
+    testCase "test24_1" $ LM1.toList test24_1 @?= LM2.toList test24_2,
+    testCase "test24_2" $ LM1.toList test24_1 @?= [(1,"A"),(5,"D"),(7,"C"),(-6,"C")]
   ]
 
 main :: IO ()
