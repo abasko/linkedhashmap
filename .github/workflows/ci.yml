@@ -1,0 +1,48 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macOS-latest, windows-latest]
+        ghc-version: ["9.4", "9.2", "9.0", "8.10"]
+        # Test legacy versions on Ubuntu:
+        include:
+          - os: ubuntu-latest
+            ghc-version: "8.8"
+          - os: ubuntu-latest
+            ghc-version: "8.6"
+          - os: ubuntu-latest
+            ghc-version: "8.4"
+          - os: ubuntu-latest
+            ghc-version: "8.2"
+          - os: ubuntu-latest
+            ghc-version: "8.0"
+          - os: ubuntu-latest
+            ghc-version: "7.10"
+
+    name: Test with GHC ${{ matrix.ghc-version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Haskell
+        uses: haskell/actions/setup@v2
+        with:
+          ghc-version: ${{ matrix.ghc-version }}
+
+      - name: Cache ~/.cabal/store and dist-newstyle
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ steps.setup-haskell.outputs.cabal-store }}
+            dist-newstyle
+          key: haskell-cache-${{ runner.arch }}-${{ runner.os }}-ghc-${{ inputs.ghc-version }}
+
+      - name: Test linkedhashmap
+        run: cabal configure --enable-tests && cabal test
+        shell: sh
