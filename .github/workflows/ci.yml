@@ -1,6 +1,19 @@
 name: CI
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  schedule:
+    #        ┌───────────── minute (0 - 59)
+    #        │  ┌───────────── hour (0 - 23)
+    #        │  │ ┌───────────── day of the month (1 - 31)
+    #        │  │ │ ┌───────────── month (1 - 12 or JAN-DEC)
+    #        │  │ │ │ ┌───────────── day of the week (0 - 6 or SUN-SAT)
+    #        │  │ │ │ │
+    #        │  │ │ │ │
+    #        │  │ │ │ │
+    #        *  * * * *
+    - cron: '30 1 1 * *'
 
 jobs:
   test:
@@ -9,31 +22,14 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macOS-latest, windows-latest]
-        ghc-version: ["9.4", "9.2", "9.0", "8.10"]
-        # Test legacy versions on Ubuntu:
-        include:
-          - os: ubuntu-latest
-            ghc-version: "8.8"
-          - os: ubuntu-latest
-            ghc-version: "8.6"
-          - os: ubuntu-latest
-            ghc-version: "8.4"
-          - os: ubuntu-latest
-            ghc-version: "8.2"
-          - os: ubuntu-latest
-            ghc-version: "8.0"
-          - os: ubuntu-latest
-            ghc-version: "7.10"
 
-    name: Test with GHC ${{ matrix.ghc-version }}
+    name: Test linkedhashmap
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Setup Haskell
         uses: haskell/actions/setup@v2
-        with:
-          ghc-version: ${{ matrix.ghc-version }}
 
       - name: Cache ~/.cabal/store and dist-newstyle
         uses: actions/cache@v3
